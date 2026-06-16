@@ -1,0 +1,1851 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TXT to EPUB - 在线电子书转换器</title>
+<script src="jszip.min.js"></script>
+<style>
+:root {
+  --bg: #f5f5f7;
+  --surface: #ffffff;
+  --border: #e5e7eb;
+  --text: #1a1a2e;
+  --text-secondary: #6b7280;
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --primary-light: #eff6ff;
+  --danger: #ef4444;
+  --danger-hover: #dc2626;
+  --success: #10b981;
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.05), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-lg: 0 10px 25px rgba(0,0,0,0.08);
+  --transition: 0.2s ease;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* Header */
+.header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(12px);
+  background: rgba(255,255,255,0.85);
+}
+
+.header-logo {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-logo svg { width: 28px; height: 28px; color: var(--primary); }
+
+.header-badge {
+  font-size: 12px;
+  color: var(--success);
+  background: #ecfdf5;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-weight: 500;
+}
+
+.header-nav {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.header-link {
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-weight: 500;
+  transition: color var(--transition);
+}
+
+.header-link:hover { color: var(--primary); }
+
+/* Main Layout */
+.main-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px 32px;
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .main-container {
+    grid-template-columns: 1fr;
+    max-width: 100%;
+    padding: 12px 16px;
+    gap: 16px;
+  }
+  .header { padding: 10px 16px; }
+  .header-logo { font-size: 17px; }
+  .header-logo svg { width: 22px; height: 22px; }
+
+  .panel-header { padding: 16px 16px 0; font-size: 14px; }
+  .panel-body { padding: 16px; }
+
+  .upload-area { padding: 24px 16px; }
+  .upload-icon { width: 36px; height: 36px; }
+  .upload-title { font-size: 14px; }
+
+  .chapter-toolbar { padding: 0 16px 12px; }
+  .chapter-toolbar .chapter-actions { width: 100%; justify-content: flex-start; }
+  .chapter-toolbar .btn { font-size: 12px; padding: 6px 10px; }
+
+  .chapter-list {
+    padding: 0 16px 16px;
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .chapter-card { padding: 12px; gap: 8px; }
+  .chapter-card .chapter-card-actions { opacity: 1; }
+  .chapter-title { font-size: 13px; }
+  .chapter-preview { font-size: 11px; }
+
+  .chapter-drag-handle { display: none; }
+
+  .btn-lg { padding: 12px 20px; font-size: 14px; }
+
+  .modal-card {
+    width: 94vw;
+    max-width: none;
+    max-height: 90vh;
+    border-radius: var(--radius-sm);
+  }
+  .modal-header { padding: 14px 16px; }
+  .modal-body { padding: 16px; }
+  .modal-footer { padding: 12px 16px; }
+  .modal-textarea { min-height: 240px; font-size: 16px; }
+
+  .form-input, .form-select { font-size: 16px; }
+}
+
+@media (max-width: 480px) {
+  .main-container { padding: 8px 10px; gap: 12px; }
+  .header { padding: 8px 12px; }
+  .header-logo { font-size: 15px; }
+  .header-logo svg { width: 20px; height: 20px; }
+  .header-nav { gap: 12px; }
+  .header-link { font-size: 12px; }
+
+  .panel-header { padding: 14px 12px 0; font-size: 13px; }
+  .panel-body { padding: 12px; }
+
+  .upload-area { padding: 20px 12px; }
+  .upload-icon { width: 30px; height: 30px; }
+  .upload-title { font-size: 13px; }
+  .upload-hint { font-size: 11px; }
+
+  .chapter-toolbar { padding: 0 12px 10px; flex-direction: column; align-items: flex-start; gap: 8px; }
+  .chapter-toolbar .chapter-actions { flex-wrap: wrap; gap: 6px; }
+  .chapter-toolbar .btn { font-size: 11px; padding: 5px 8px; }
+
+  .chapter-list { padding: 0 12px 12px; gap: 6px; }
+  .chapter-card { padding: 10px; gap: 6px; border-radius: 6px; }
+  .chapter-title { font-size: 12px; }
+  .chapter-preview { font-size: 10px; }
+
+  .cover-area { flex-direction: column; align-items: flex-start; }
+  .cover-actions { flex-direction: row; width: 100%; }
+  .cover-actions .btn-sm { flex: 1; }
+
+  .btn-lg { padding: 12px 16px; font-size: 13px; width: 100%; }
+
+  .modal-card { width: 96vw; max-height: 92vh; border-radius: 8px; }
+  .modal-header { padding: 12px 14px; }
+  .modal-title { font-size: 14px; }
+  .modal-body { padding: 12px 14px; }
+  .modal-footer { padding: 10px 14px; }
+  .modal-footer .btn { flex: 1; }
+  .modal-textarea { min-height: 200px; font-size: 16px; }
+
+  .form-input, .form-select { padding: 8px 12px; font-size: 16px; }
+
+  .section-divider { margin: 0 16px; }
+}
+
+/* Beian Bar */
+.beian-bar {
+  width: 100%;
+  background: transparent;
+  padding: 12px 0;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.6;
+  border-top: 1px solid var(--border);
+}
+.beian-pc {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 20px;
+}
+.beian-disclaimer { color: #e74c3c; white-space: nowrap; }
+.beian-icp { color: #333; text-decoration: none; white-space: nowrap; }
+.beian-gongan {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #333;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.beian-gongan img { width: 16px; height: 16px; }
+@media (max-width: 768px) {
+  .beian-pc { display: none; }
+  .beian-mobile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .beian-mobile a, .beian-mobile span { display: block; line-height: 1.8; }
+}
+@media (min-width: 769px) {
+  .beian-mobile { display: none; }
+}
+
+/* Panels */
+.panel {
+  background: var(--surface);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.panel-header {
+  padding: 20px 24px 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.panel-body { padding: 20px 24px; }
+
+/* Upload Area */
+.upload-area {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 32px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: all var(--transition);
+  background: #fafbfc;
+}
+
+.upload-area:hover, .upload-area.drag-over {
+  border-color: var(--primary);
+  background: var(--primary-light);
+}
+
+.upload-icon { width: 48px; height: 48px; margin: 0 auto 12px; color: var(--primary); opacity: 0.7; }
+
+.upload-title { font-size: 15px; font-weight: 500; color: var(--text); margin-bottom: 4px; }
+
+.upload-hint { font-size: 13px; color: var(--text-secondary); }
+
+.upload-status {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--primary-light);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.upload-status.error {
+  background: #fef2f2;
+  color: var(--danger);
+}
+
+/* Form Controls */
+.form-group { margin-top: 16px; }
+
+.form-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.form-input, .form-select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  transition: border-color var(--transition);
+  font-family: inherit;
+}
+
+.form-input:focus, .form-select:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+}
+
+/* Cover Upload */
+.cover-area {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.cover-preview {
+  width: 80px;
+  height: 106px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  object-fit: cover;
+  background: #f3f4f6;
+  flex-shrink: 0;
+}
+
+.cover-placeholder {
+  width: 80px;
+  height: 106px;
+  border-radius: 6px;
+  border: 1px dashed var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  font-size: 12px;
+  flex-shrink: 0;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.cover-actions { display: flex; flex-direction: column; gap: 8px; }
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 18px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 500;
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition);
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+}
+
+.btn-primary:hover { background: var(--primary-hover); }
+
+.btn-secondary {
+  background: #f3f4f6;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.btn-secondary:hover { background: #e5e7eb; }
+
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+.btn-danger:hover { background: var(--danger-hover); }
+
+.btn-sm { padding: 6px 12px; font-size: 12px; }
+.btn-xs { padding: 3px 8px; font-size: 11px; }
+
+.btn-block { width: 100%; }
+.btn-lg { padding: 14px 28px; font-size: 16px; }
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* Chapter List */
+.chapter-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px 16px;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.chapter-count {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.chapter-actions { display: flex; gap: 8px; }
+
+.chapter-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 24px 24px;
+  max-height: calc(100vh - 180px);
+  overflow-y: auto;
+}
+
+.chapter-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  background: #fafbfc;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: default;
+  transition: all var(--transition);
+  position: relative;
+}
+
+.chapter-card:hover { border-color: var(--primary); box-shadow: var(--shadow-md); }
+
+.chapter-card.selected {
+  background: var(--primary-light);
+  border-color: var(--primary);
+}
+
+.chapter-card.dragging {
+  opacity: 0.4;
+  transform: scale(0.98);
+}
+
+.chapter-card.drag-over {
+  border-color: var(--primary);
+  border-style: dashed;
+  background: var(--primary-light);
+}
+
+.chapter-drag-handle {
+  cursor: grab;
+  color: var(--text-secondary);
+  padding-top: 2px;
+  flex-shrink: 0;
+  font-size: 18px;
+  line-height: 1;
+  user-select: none;
+}
+
+.chapter-drag-handle:active { cursor: grabbing; }
+
+.chapter-checkbox {
+  margin-top: 3px;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+
+.chapter-content { flex: 1; min-width: 0; }
+
+.chapter-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+  word-break: break-all;
+}
+
+.chapter-preview {
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chapter-card-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity var(--transition);
+}
+
+.chapter-card:hover .chapter-card-actions { opacity: 1; }
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  padding: 60px 24px;
+  color: var(--text-secondary);
+}
+
+.empty-state-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
+
+.empty-state-title { font-size: 16px; font-weight: 500; color: var(--text); margin-bottom: 8px; }
+
+.empty-state-desc { font-size: 13px; }
+
+/* Toast */
+.toast {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  background: var(--text);
+  color: #fff;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  z-index: 1000;
+  animation: toastIn 0.3s ease, toastOut 0.3s ease 2.5s forwards;
+  max-width: 360px;
+  box-shadow: var(--shadow-lg);
+}
+
+@keyframes toastIn { from { opacity:0; transform:translateY(-12px); } to { opacity:1; transform:translateY(0); } }
+@keyframes toastOut { from { opacity:1; } to { opacity:0; } }
+
+.toast.warning { background: #f59e0b; color: #fff; }
+
+/* Progress Bar */
+.progress-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+
+.progress-card {
+  background: var(--surface);
+  padding: 32px 40px;
+  border-radius: var(--radius);
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+}
+
+.progress-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Section divider */
+.section-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 6px 0;
+}
+
+/* Custom scrollbar */
+.chapter-list::-webkit-scrollbar { width: 4px; }
+.chapter-list::-webkit-scrollbar-track { background: transparent; }
+.chapter-list::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+
+/* Encoding warning */
+.encoding-warning {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #f59e0b;
+  margin-top: 6px;
+}
+
+.encoding-warning.show { display: flex; }
+
+/* Inline edit */
+.chapter-title-input {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  border: 1px solid var(--primary);
+  border-radius: 4px;
+  padding: 2px 6px;
+  width: 100%;
+  font-family: inherit;
+  background: #fff;
+}
+
+.chapter-title-input:focus { outline: none; box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+
+.modal-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  width: 90vw;
+  max-width: 720px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-title { font-size: 16px; font-weight: 600; }
+
+.modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+}
+
+.modal-close:hover { background: #f3f4f6; color: var(--text); }
+
+.modal-body {
+  padding: 20px 24px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modal-textarea {
+  width: 100%;
+  min-height: 320px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-family: "Noto Serif CJK SC", "SimSun", serif;
+  line-height: 1.8;
+  color: var(--text);
+  resize: vertical;
+}
+
+.modal-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--border);
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header class="header">
+  <div class="header-logo">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+      <line x1="8" y1="7" x2="16" y2="7"/>
+      <line x1="8" y1="11" x2="14" y2="11"/>
+    </svg>
+    TXT to EPUB
+  </div>
+  <nav class="header-nav">
+    <a class="header-link" href="https://www.937788.xyz" target="_blank">忆痕发布页</a>
+    <a class="header-link" href="README.html">使用说明</a>
+  </nav>
+</header>
+
+<!-- Main Content -->
+<div class="main-container">
+  <!-- Left Sidebar -->
+  <aside class="panel">
+    <div class="panel-header">上传文件</div>
+    <div class="panel-body" style="padding-top:12px;">
+      <!-- Drop Zone -->
+      <div class="upload-area" id="uploadArea">
+        <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17,8 12,3 7,8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        <div class="upload-title">拖拽 TXT 文件到此处</div>
+        <div class="upload-hint">或点击选择文件</div>
+        <input type="file" id="fileInput" accept=".txt" style="display:none;">
+      </div>
+      <div class="upload-status" id="uploadStatus" style="display:none;"></div>
+
+      <!-- Encoding Selector -->
+      <div class="form-group">
+        <label class="form-label">文本编码</label>
+        <select class="form-select" id="encodingSelect">
+          <option value="utf-8">UTF-8（推荐）</option>
+          <option value="gbk">GBK / GB2312（简体中文）</option>
+          <option value="big5">Big5（繁体中文）</option>
+          <option value="gb18030">GB18030（中文扩展）</option>
+          <option value="shift_jis">Shift_JIS（日文）</option>
+          <option value="euc-kr">EUC-KR（韩文）</option>
+          <option value="utf-16le">UTF-16 LE</option>
+          <option value="utf-16be">UTF-16 BE</option>
+          <option value="iso-8859-1">ISO-8859-1 / Latin-1</option>
+          <option value="windows-1252">Windows-1252</option>
+        </select>
+        <div class="encoding-warning" id="encodingWarning">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          <span>检测到疑似乱码，请尝试切换编码</span>
+        </div>
+      </div>
+    </div>
+
+    <hr class="section-divider" style="margin:0 24px;">
+
+    <!-- Book Info -->
+    <div class="panel-header">书籍信息</div>
+    <div class="panel-body" style="padding-top:12px;">
+      <div class="form-group" style="margin-top:0;">
+        <label class="form-label">书名</label>
+        <input type="text" class="form-input" id="bookTitle" placeholder="输入书名...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">作者</label>
+        <input type="text" class="form-input" id="bookAuthor" placeholder="输入作者...">
+      </div>
+      <div class="form-group">
+        <label class="form-label">封面图片（可选，JPG/PNG，建议 1400x2100px，小于 5MB）</label>
+        <div class="cover-area">
+          <img class="cover-preview" id="coverPreview" style="display:none;" alt="封面预览">
+          <div class="cover-placeholder" id="coverPlaceholder">1400x2100<br>JPG/PNG</div>
+          <div class="cover-actions">
+            <label class="btn btn-secondary btn-sm" style="cursor:pointer;">
+              选择图片
+              <input type="file" id="coverInput" accept="image/jpeg,image/png" style="display:none;">
+            </label>
+            <button class="btn btn-secondary btn-sm" id="coverRemoveBtn" style="display:none;">移除</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="section-divider" style="margin:0 24px;">
+
+    <!-- Export -->
+    <div class="panel-body">
+      <button class="btn btn-primary btn-block btn-lg" id="exportBtn" disabled>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7,10 12,15 17,10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        导出 EPUB
+      </button>
+    </div>
+  </aside>
+
+  <!-- Right Panel: Chapters -->
+  <section class="panel">
+    <div class="panel-header" style="padding-bottom:12px;">章节管理</div>
+    <div class="chapter-toolbar">
+      <span class="chapter-count" id="chapterCount">尚未上传文件</span>
+      <div class="chapter-actions">
+        <button class="btn btn-secondary btn-sm" id="selectAllBtn" disabled>全选</button>
+        <button class="btn btn-danger btn-sm" id="mergeBtn" disabled>合并选中章节</button>
+        <button class="btn btn-danger btn-sm" id="deleteSelectedBtn" disabled>删除选中章节</button>
+        <button class="btn btn-secondary btn-sm" id="resetChaptersBtn" disabled>重新识别</button>
+      </div>
+    </div>
+    <div class="chapter-list" id="chapterList">
+      <div class="empty-state">
+        <div class="empty-state-icon">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.3">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14,2 14,8 20,8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+        </div>
+        <div class="empty-state-title">上传 TXT 文件后自动识别章节</div>
+        <div class="empty-state-desc">支持中文小说、英文书籍等常见章节格式</div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- Progress Overlay -->
+<div class="progress-overlay" id="progressOverlay" style="display:none;">
+  <div class="progress-card">
+    <div class="progress-spinner"></div>
+    <div style="font-size:14px;font-weight:500;">正在生成 EPUB 文件...</div>
+  </div>
+</div>
+
+<!-- Content Edit Modal -->
+<div class="modal-overlay" id="editModal" style="display:none;">
+  <div class="modal-card">
+    <div class="modal-header">
+      <span class="modal-title">编辑章节内容</span>
+      <button class="modal-close" id="modalCloseBtn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <label class="form-label">章节标题</label>
+      <input type="text" class="form-input" id="modalChapterTitle" style="margin-bottom:12px;">
+      <label class="form-label">章节正文</label>
+      <textarea class="modal-textarea" id="modalChapterContent" placeholder="输入章节内容..."></textarea>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="modalCancelBtn">取消</button>
+      <button class="btn btn-primary" id="modalSaveBtn">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ State Management ============
+const state = {
+  file: null,
+  fileName: '',
+  arrayBuffer: null,
+  encoding: 'utf-8',
+  text: '',
+  chapters: [],
+  title: '',
+  author: '',
+  coverDataUrl: null,
+  coverBlob: null,
+};
+
+// ============ DOM References ============
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => document.querySelectorAll(s);
+
+const dom = {
+  uploadArea: $('#uploadArea'),
+  fileInput: $('#fileInput'),
+  uploadStatus: $('#uploadStatus'),
+  encodingSelect: $('#encodingSelect'),
+  encodingWarning: $('#encodingWarning'),
+  bookTitle: $('#bookTitle'),
+  bookAuthor: $('#bookAuthor'),
+  coverInput: $('#coverInput'),
+  coverPreview: $('#coverPreview'),
+  coverPlaceholder: $('#coverPlaceholder'),
+  coverRemoveBtn: $('#coverRemoveBtn'),
+  exportBtn: $('#exportBtn'),
+  chapterCount: $('#chapterCount'),
+  chapterList: $('#chapterList'),
+  selectAllBtn: $('#selectAllBtn'),
+  mergeBtn: $('#mergeBtn'),
+  deleteSelectedBtn: $('#deleteSelectedBtn'),
+  resetChaptersBtn: $('#resetChaptersBtn'),
+  progressOverlay: $('#progressOverlay'),
+  editModal: $('#editModal'),
+  modalChapterTitle: $('#modalChapterTitle'),
+  modalChapterContent: $('#modalChapterContent'),
+  modalCloseBtn: $('#modalCloseBtn'),
+  modalCancelBtn: $('#modalCancelBtn'),
+  modalSaveBtn: $('#modalSaveBtn'),
+};
+
+// ============ Chapter Detection Patterns ============
+const CHAPTER_PATTERNS = [
+  // Chinese numbered chapters: 第X章, 第X回, 第X节, etc.
+  /^[\s\u3000]*第[零一二三四五六七八九十百千万\d]+[章节回卷篇集部](\s|$)/,
+  /^[\s\u3000]*第[零一二三四五六七八九十百千万\d]+[章节回卷篇集部]\s*[:：]/,
+  // Chinese numbered with brackets: 【第X章】, (第X章)
+  /^[\s\u3000]*[\[【\(（]第[零一二三四五六七八九十百千万\d]+[章节回卷篇][\]】\)）]/,
+  // Chinese special sections
+  /^[\s\u3000]*(楔子|序[章言]|前言|引[子言]|终章|尾声|后记|附录|番外|补遗|外传|写在前面|完结感言|上架感言)(\s|[：:]|$)/,
+  // English chapters
+  /^[\s\u3000]*(Chapter|Part|Volume|Act|Section|Book)\s+\d+/i,
+  /^[\s\u3000]*(Chapter|Part|Volume|Act|Section)\s+[IVXLCDM]+/i,
+  // English special sections
+  /^[\s\u3000]*(Prologue|Epilogue|Introduction|Preface|Foreword|Afterword|Appendix|Interlude|Acknowledgments?|Glossary|Index|Contents)\b/i,
+  // Chapter patterns with separator: --- Chapter 1 ---
+  /^[\s\u3000]*[-=*~]{2,}\s*(第[零一二三四五六七八九十百千万\d]+[章节回卷篇]|Chapter\s+\d+|楔子|序章).*[-=*~]{2,}\s*$/i,
+  // Simple numbered: 1. Title, 一、Title (short lines that look like headings)
+  /^[\s\u3000]*[\(（]?[零一二三四五六七八九十\d]+[\)）]?[\.、,，\s]+.{1,40}$/,
+  // Volume indicators: 卷X / 第X卷
+  /^[\s\u3000]*[卷第][零一二三四五六七八九十百千万\d]+[卷]?(\s|[:：]|$)/,
+  // Arabic numbered: 1. 2. etc (when short, likely chapter headings)
+  /^[\s\u3000]*\d+[\.\)、]\s*.{1,60}$/,
+];
+
+// ============ Utility Functions ============
+function showToast(msg, type) {
+  const existing = $('.toast');
+  if (existing) existing.remove();
+  const el = document.createElement('div');
+  el.className = 'toast' + (type === 'warning' ? ' warning' : '');
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function escapeXml(str) {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+}
+
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+function updateExportButton() {
+  dom.exportBtn.disabled = !(state.chapters.length > 0);
+}
+
+// ============ File Handling ============
+function handleFile(file) {
+  if (!file.name.toLowerCase().endsWith('.txt')) {
+    showToast('请上传 .txt 格式的文件', 'warning');
+    return;
+  }
+
+  state.file = file;
+  state.fileName = file.name.replace(/\.txt$/i, '');
+  state.arrayBuffer = null;
+  state.text = '';
+  state.chapters = [];
+
+  // Set default title from filename
+  if (!dom.bookTitle.value) {
+    dom.bookTitle.value = state.fileName;
+    state.title = state.fileName;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    state.arrayBuffer = e.target.result;
+    decodeAndParse();
+  };
+  reader.readAsArrayBuffer(file);
+
+  // Update UI
+  dom.uploadStatus.style.display = 'flex';
+  dom.uploadStatus.className = 'upload-status';
+  dom.uploadStatus.innerHTML = `
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>
+    ${escapeHtml(file.name)} (${(file.size / 1024).toFixed(1)} KB)
+  `;
+}
+
+function decodeAndParse() {
+  if (!state.arrayBuffer) return;
+
+  state.encoding = dom.encodingSelect.value;
+
+  try {
+    const decoder = new TextDecoder(state.encoding, { fatal: false });
+    state.text = decoder.decode(new Uint8Array(state.arrayBuffer));
+
+    // Check for potential garbled text
+    const replacementCount = (state.text.match(/\uFFFD/g) || []).length;
+    const totalChars = state.text.length;
+    const replacementRatio = totalChars > 0 ? replacementCount / totalChars : 0;
+
+    if (replacementRatio > 0.01 && state.encoding === 'utf-8') {
+      dom.encodingWarning.classList.add('show');
+    } else {
+      dom.encodingWarning.classList.remove('show');
+    }
+
+    detectChapters();
+    renderChapters();
+    updateExportButton();
+  } catch (err) {
+    dom.uploadStatus.className = 'upload-status error';
+    dom.uploadStatus.textContent = '编码解析失败，请尝试其他编码格式';
+    dom.encodingWarning.classList.add('show');
+  }
+}
+
+// ============ Chapter Detection ============
+function isChapterHeading(line) {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.length > 120) return false; // Too long for a heading
+
+  for (const pattern of CHAPTER_PATTERNS) {
+    if (pattern.test(line)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function cleanChapterTitle(line) {
+  return line.trim().replace(/^[\u3000\s]+/, '').replace(/[\u3000\s]+$/, '');
+}
+
+function detectChapters() {
+  if (!state.text) {
+    state.chapters = [];
+    return;
+  }
+
+  const lines = state.text.split(/\r?\n/);
+  const chapterIndices = [];
+
+  // Find all chapter heading lines
+  for (let i = 0; i < lines.length; i++) {
+    if (isChapterHeading(lines[i])) {
+      chapterIndices.push(i);
+    }
+  }
+
+  // If no chapters detected, treat the whole text as one chapter
+  if (chapterIndices.length === 0) {
+    state.chapters = [{
+      title: state.fileName || '正文',
+      content: state.text.trim(),
+    }];
+    return;
+  }
+
+  // If first chapter doesn't start at line 0, add a preamble chapter
+  const firstIndex = chapterIndices[0];
+  if (firstIndex > 0) {
+    const preamble = lines.slice(0, firstIndex).join('\n').trim();
+    if (preamble) {
+      chapterIndices.unshift(-1); // Mark preamble with -1
+    }
+  }
+
+  // Split text into chapters
+  state.chapters = [];
+  for (let i = 0; i < chapterIndices.length; i++) {
+    let startIdx, title;
+
+    if (chapterIndices[i] === -1) {
+      // Preamble (before first detected chapter)
+      startIdx = 0;
+      title = '前言 / 简介';
+    } else {
+      startIdx = chapterIndices[i];
+      title = cleanChapterTitle(lines[startIdx]);
+    }
+
+    const endIdx = (i + 1 < chapterIndices.length)
+      ? (chapterIndices[i + 1] === -1 ? chapterIndices[i + 2] : chapterIndices[i + 1])
+      : lines.length;
+
+    const contentLines = [];
+    // Skip the heading line itself for content (except preamble)
+    const contentStart = (chapterIndices[i] === -1) ? startIdx : startIdx + 1;
+    for (let j = contentStart; j < endIdx; j++) {
+      contentLines.push(lines[j]);
+    }
+
+    const content = contentLines.join('\n').trim();
+    if (content || chapterIndices[i] !== -1) {
+      state.chapters.push({
+        title: title,
+        content: content,
+      });
+    }
+  }
+}
+
+// ============ Chapter Rendering ============
+function renderChapters() {
+  dom.chapterList.innerHTML = '';
+  dom.selectAllBtn.disabled = state.chapters.length === 0;
+  dom.mergeBtn.disabled = true;
+  dom.deleteSelectedBtn.disabled = true;
+  dom.resetChaptersBtn.disabled = state.chapters.length === 0;
+  updateExportButton();
+
+  if (state.chapters.length === 0) {
+    dom.chapterCount.textContent = '尚未上传文件';
+    dom.chapterList.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.3">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14,2 14,8 20,8"/>
+            <line x1="16" y1="13" x2="8" y2="13"/>
+            <line x1="16" y1="17" x2="8" y2="17"/>
+          </svg>
+        </div>
+        <div class="empty-state-title">上传 TXT 文件后自动识别章节</div>
+        <div class="empty-state-desc">支持中文小说、英文书籍等常见章节格式</div>
+      </div>`;
+    return;
+  }
+
+  dom.chapterCount.textContent = `共 ${state.chapters.length} 个章节`;
+
+  state.chapters.forEach((ch, idx) => {
+    const card = createChapterCard(ch, idx);
+    dom.chapterList.appendChild(card);
+  });
+}
+
+function createChapterCard(chapter, index) {
+  const card = document.createElement('div');
+  card.className = 'chapter-card';
+  card.draggable = true;
+  card.dataset.index = index;
+
+  // Preview text: first 60 chars, no newlines
+  const preview = chapter.content.replace(/\s+/g, ' ').substring(0, 60) + (chapter.content.length > 60 ? '...' : '');
+
+  card.innerHTML = `
+    <span class="chapter-drag-handle" title="拖拽排序">⠿</span>
+    <input type="checkbox" class="chapter-checkbox" data-index="${index}" title="选择章节">
+    <div class="chapter-content">
+      <div class="chapter-title" data-index="${index}">${escapeHtml(chapter.title)}</div>
+      <div class="chapter-preview">${escapeHtml(preview) || '(空章节)'}</div>
+    </div>
+    <div class="chapter-card-actions">
+      <button class="btn btn-secondary btn-xs edit-content-btn" data-index="${index}" title="编辑内容">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </button>
+      <button class="btn btn-danger btn-xs delete-chapter-btn" data-index="${index}" title="删除章节">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+  `;
+
+  // Drag events
+  card.addEventListener('dragstart', handleDragStart);
+  card.addEventListener('dragend', handleDragEnd);
+  card.addEventListener('dragover', handleDragOver);
+  card.addEventListener('dragenter', handleDragEnter);
+  card.addEventListener('dragleave', handleDragLeave);
+  card.addEventListener('drop', handleDrop);
+
+  // Checkbox change
+  const checkbox = card.querySelector('.chapter-checkbox');
+  checkbox.addEventListener('change', updateMergeButton);
+
+  // Edit content button
+  const editContentBtn = card.querySelector('.edit-content-btn');
+  editContentBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openContentEditor(index);
+  });
+
+  // Delete chapter button
+  const deleteBtn = card.querySelector('.delete-chapter-btn');
+  deleteBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    deleteChapter(index);
+  });
+
+  // Double-click title to edit
+  const titleEl = card.querySelector('.chapter-title');
+  titleEl.addEventListener('dblclick', () => startEditTitle(card, index));
+
+  return card;
+}
+
+function updateMergeButton() {
+  const checked = $$('.chapter-checkbox:checked');
+  dom.mergeBtn.disabled = checked.length < 2;
+  dom.deleteSelectedBtn.disabled = checked.length < 1;
+}
+
+let dragSourceIndex = null;
+
+function handleDragStart(e) {
+  dragSourceIndex = parseInt(this.dataset.index);
+  this.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', dragSourceIndex);
+}
+
+function handleDragEnd(e) {
+  this.classList.remove('dragging');
+  $$('.chapter-card').forEach(c => c.classList.remove('drag-over'));
+  dragSourceIndex = null;
+}
+
+function handleDragOver(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+}
+
+function handleDragEnter(e) {
+  e.preventDefault();
+  const targetIndex = parseInt(this.dataset.index);
+  if (targetIndex !== dragSourceIndex) {
+    this.classList.add('drag-over');
+  }
+}
+
+function handleDragLeave(e) {
+  this.classList.remove('drag-over');
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  this.classList.remove('drag-over');
+  const targetIndex = parseInt(this.dataset.index);
+
+  if (dragSourceIndex !== null && dragSourceIndex !== targetIndex) {
+    reorderChapters(dragSourceIndex, targetIndex);
+  }
+}
+
+function reorderChapters(fromIndex, toIndex) {
+  const [moved] = state.chapters.splice(fromIndex, 1);
+  state.chapters.splice(toIndex, 0, moved);
+  renderChapters();
+}
+
+function deleteChapter(index) {
+  if (state.chapters.length <= 1) {
+    showToast('至少保留一个章节', 'warning');
+    return;
+  }
+  const title = state.chapters[index].title;
+  state.chapters.splice(index, 1);
+  renderChapters();
+  showToast('已删除章节：' + title);
+}
+
+function startEditTitle(card, index) {
+  const titleEl = card.querySelector('.chapter-title');
+  const currentTitle = state.chapters[index].title;
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'chapter-title-input';
+  input.value = currentTitle;
+  input.dataset.index = index;
+
+  titleEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  const finishEdit = () => {
+    const newTitle = input.value.trim();
+    if (newTitle && newTitle !== currentTitle) {
+      state.chapters[index].title = newTitle;
+    }
+    renderChapters();
+  };
+
+  input.addEventListener('blur', finishEdit);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { input.blur(); }
+    if (e.key === 'Escape') {
+      input.value = currentTitle;
+      input.blur();
+    }
+  });
+}
+
+// ============ Content Editor Modal ============
+let editingChapterIndex = -1;
+
+function openContentEditor(index) {
+  editingChapterIndex = index;
+  const chapter = state.chapters[index];
+  dom.modalChapterTitle.value = chapter.title;
+  dom.modalChapterContent.value = chapter.content;
+  dom.editModal.style.display = 'flex';
+  setTimeout(() => dom.modalChapterContent.focus(), 100);
+}
+
+function closeContentEditor() {
+  dom.editModal.style.display = 'none';
+  editingChapterIndex = -1;
+}
+
+function saveContentEditor() {
+  if (editingChapterIndex < 0) return;
+  const newTitle = dom.modalChapterTitle.value.trim();
+  const newContent = dom.modalChapterContent.value;
+  if (!newTitle) {
+    showToast('章节标题不能为空', 'warning');
+    return;
+  }
+  state.chapters[editingChapterIndex].title = newTitle;
+  state.chapters[editingChapterIndex].content = newContent;
+  closeContentEditor();
+  renderChapters();
+  showToast('章节内容已保存');
+}
+
+dom.modalCloseBtn.addEventListener('click', closeContentEditor);
+dom.modalCancelBtn.addEventListener('click', closeContentEditor);
+dom.modalSaveBtn.addEventListener('click', saveContentEditor);
+
+// Close modal on overlay click
+dom.editModal.addEventListener('click', (e) => {
+  if (e.target === dom.editModal) closeContentEditor();
+});
+
+// Close modal on Escape
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && dom.editModal.style.display === 'flex') {
+    closeContentEditor();
+  }
+});
+
+// ============ Chapter Operations ============
+function mergeSelectedChapters() {
+  const checkboxes = $$('.chapter-checkbox:checked');
+  if (checkboxes.length < 2) return;
+
+  const indices = Array.from(checkboxes)
+    .map(cb => parseInt(cb.dataset.index))
+    .sort((a, b) => a - b);
+
+  // Merge all selected into the first one
+  const targetIdx = indices[0];
+  const mergedContent = indices.map(i => {
+    const ch = state.chapters[i];
+    return (i === targetIdx ? '' : '\n\n' + ch.title + '\n\n') + ch.content;
+  }).join('');
+
+  state.chapters[targetIdx].content = mergedContent;
+
+  // Remove the other chapters (in reverse order)
+  for (let i = indices.length - 1; i > 0; i--) {
+    state.chapters.splice(indices[i], 1);
+  }
+
+  renderChapters();
+  showToast('章节已合并');
+}
+
+function deleteSelectedChapters() {
+  const checkboxes = $$('.chapter-checkbox:checked');
+  if (checkboxes.length === 0) return;
+
+  const indices = Array.from(checkboxes)
+    .map(cb => parseInt(cb.dataset.index))
+    .sort((a, b) => b - a); // Reverse order for safe removal
+
+  // Don't delete all chapters
+  if (indices.length >= state.chapters.length) {
+    showToast('至少保留一个章节', 'warning');
+    return;
+  }
+
+  const count = indices.length;
+  for (const idx of indices) {
+    state.chapters.splice(idx, 1);
+  }
+
+  renderChapters();
+  showToast('已删除 ' + count + ' 个章节');
+}
+
+// ============ Encoding Change ============
+dom.encodingSelect.addEventListener('change', () => {
+  if (state.arrayBuffer) {
+    decodeAndParse();
+  }
+});
+
+// ============ File Upload Events ============
+dom.uploadArea.addEventListener('click', () => dom.fileInput.click());
+
+dom.fileInput.addEventListener('change', (e) => {
+  if (e.target.files.length > 0) {
+    handleFile(e.target.files[0]);
+  }
+});
+
+// Drag and drop
+dom.uploadArea.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  dom.uploadArea.classList.add('drag-over');
+});
+
+dom.uploadArea.addEventListener('dragleave', () => {
+  dom.uploadArea.classList.remove('drag-over');
+});
+
+dom.uploadArea.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dom.uploadArea.classList.remove('drag-over');
+  if (e.dataTransfer.files.length > 0) {
+    handleFile(e.dataTransfer.files[0]);
+  }
+});
+
+// ============ Select All ============
+dom.selectAllBtn.addEventListener('click', () => {
+  const checkboxes = $$('.chapter-checkbox');
+  const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+  checkboxes.forEach(cb => { cb.checked = !allChecked; });
+  updateMergeButton();
+  dom.selectAllBtn.textContent = allChecked ? '全选' : '取消全选';
+});
+
+// ============ Merge Button ============
+dom.mergeBtn.addEventListener('click', mergeSelectedChapters);
+
+// ============ Delete Selected Button ============
+dom.deleteSelectedBtn.addEventListener('click', deleteSelectedChapters);
+
+// ============ Reset Chapters ============
+dom.resetChaptersBtn.addEventListener('click', () => {
+  detectChapters();
+  renderChapters();
+  showToast('已重新识别章节');
+});
+
+// ============ Cover Image ============
+dom.coverInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  // Validate file size (< 5MB)
+  if (file.size > 5 * 1024 * 1024) {
+    showToast('封面图片不能超过 5MB', 'warning');
+    dom.coverInput.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    // Resize cover image for EPUB
+    const img = new Image();
+    img.onload = function() {
+      const maxDim = 800;
+      let w = img.width, h = img.height;
+      if (w > maxDim || h > maxDim) {
+        const ratio = Math.min(maxDim / w, maxDim / h);
+        w = Math.round(w * ratio);
+        h = Math.round(h * ratio);
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+
+      state.coverDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      canvas.toBlob(function(blob) {
+        state.coverBlob = blob;
+      }, 'image/jpeg', 0.85);
+
+      dom.coverPreview.src = state.coverDataUrl;
+      dom.coverPreview.style.display = 'block';
+      dom.coverPlaceholder.style.display = 'none';
+      dom.coverRemoveBtn.style.display = 'inline-flex';
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+dom.coverRemoveBtn.addEventListener('click', () => {
+  state.coverDataUrl = null;
+  state.coverBlob = null;
+  dom.coverPreview.style.display = 'none';
+  dom.coverPreview.src = '';
+  dom.coverPlaceholder.style.display = 'flex';
+  dom.coverRemoveBtn.style.display = 'none';
+  dom.coverInput.value = '';
+});
+
+// ============ Title / Author Auto-sync ============
+dom.bookTitle.addEventListener('input', () => {
+  state.title = dom.bookTitle.value.trim();
+});
+
+dom.bookAuthor.addEventListener('input', () => {
+  state.author = dom.bookAuthor.value.trim();
+});
+
+// ============ EPUB Generation ============
+function textToParagraphs(text) {
+  if (!text) return [''];
+
+  // Step 1: Split by blank lines as primary paragraph separator
+  const blocks = text.split(/\n\s*\n/);
+
+  if (blocks.length <= 1) {
+    // No blank lines detected -- likely hard-wrapped text
+    // Split into lines and merge intelligently
+    const lines = text.split(/\n/).filter(l => l.trim());
+    if (lines.length <= 1) return lines.length === 1 ? [lines[0].trim()] : [''];
+
+    // Try to detect paragraph boundaries by sentence-ending punctuation
+    const result = [];
+    let current = '';
+    for (const line of lines) {
+      const t = line.trim();
+      if (!t) continue;
+      current += t;
+      // Sentence-ending punctuation marks a paragraph boundary
+      if (/[。！？"」』\)）]$/.test(t)) {
+        result.push(current);
+        current = '';
+      }
+    }
+    if (current) result.push(current);
+    return result.length > 0 ? result : [text.replace(/\n/g, '')];
+  }
+
+  // Has blank lines: merge single newlines within each block, then filter empties
+  return blocks
+    .map(b => b.replace(/\n/g, '').trim())
+    .filter(p => p.length > 0);
+}
+
+function createChapterXhtml(chapter, index) {
+  const title = escapeXml(chapter.title);
+  const paragraphs = textToParagraphs(chapter.content);
+
+  let bodyContent = `<h2>${title}</h2>\n`;
+  for (const para of paragraphs) {
+    bodyContent += `    <p>${escapeXml(para.trim())}</p>\n`;
+  }
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="zh-CN">
+<head>
+  <title>${title}</title>
+  <link rel="stylesheet" type="text/css" href="../styles.css"/>
+</head>
+<body>
+${bodyContent}</body>
+</html>`;
+}
+
+function createContentOpf(bookId, chapterIds) {
+  const title = escapeXml(dom.bookTitle.value.trim() || 'Untitled');
+  const author = escapeXml(dom.bookAuthor.value.trim() || 'Unknown');
+  const now = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const hasCover = !!state.coverDataUrl;
+  const coverMediaType = 'image/jpeg';
+
+  let manifestItems = '';
+  let spineItems = '';
+
+  // Navigation and CSS
+  manifestItems += '    <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>\n';
+  manifestItems += '    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>\n';
+  manifestItems += '    <item id="css" href="styles.css" media-type="text/css"/>\n';
+
+  if (hasCover) {
+    manifestItems += `    <item id="cover-image" href="Images/cover.jpg" media-type="${coverMediaType}" properties="cover-image"/>\n`;
+  }
+  // Always include cover/title page as first page
+  manifestItems += '    <item id="cover-page" href="Text/cover.xhtml" media-type="application/xhtml+xml"/>\n';
+  spineItems += '    <itemref idref="cover-page"/>\n';
+
+  for (let i = 0; i < chapterIds.length; i++) {
+    manifestItems += `    <item id="chapter${i}" href="Text/chapter${i}.xhtml" media-type="application/xhtml+xml"/>\n`;
+    spineItems += `    <itemref idref="chapter${i}"/>\n`;
+  }
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="book-id">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <dc:title>${title}</dc:title>
+    <dc:creator id="author">${author}</dc:creator>
+    <dc:language>zh-CN</dc:language>
+    <dc:identifier id="book-id">urn:uuid:${bookId}</dc:identifier>
+    <meta property="dcterms:modified">${now}</meta>
+    ${hasCover ? '<meta name="cover" content="cover-image"/>' : ''}
+  </metadata>
+  <manifest>
+${manifestItems}  </manifest>
+  <spine toc="ncx">
+${spineItems}  </spine>
+</package>`;
+}
+
+function createTocNcx(bookId, chapterIds) {
+  const title = escapeXml(dom.bookTitle.value.trim() || 'Untitled');
+
+  let navPoints = '';
+  let playOrder = 1;
+
+  for (let i = 0; i < chapterIds.length; i++) {
+    const chTitle = escapeXml(state.chapters[i].title);
+    navPoints += `    <navPoint id="navpoint${i}" playOrder="${playOrder++}">
+      <navLabel><text>${chTitle}</text></navLabel>
+      <content src="Text/chapter${i}.xhtml"/>
+    </navPoint>\n`;
+  }
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <head>
+    <meta name="dtb:uid" content="urn:uuid:${bookId}"/>
+    <meta name="dtb:depth" content="1"/>
+    <meta name="dtb:totalPageCount" content="0"/>
+    <meta name="dtb:maxPageNumber" content="0"/>
+  </head>
+  <docTitle><text>${title}</text></docTitle>
+  <navMap>
+${navPoints}  </navMap>
+</ncx>`;
+}
+
+function createNavXhtml(chapterIds) {
+  const title = escapeXml(dom.bookTitle.value.trim() || 'Untitled');
+
+  let listItems = '';
+  for (let i = 0; i < chapterIds.length; i++) {
+    const chTitle = escapeXml(state.chapters[i].title);
+    listItems += `      <li><a href="Text/chapter${i}.xhtml">${chTitle}</a></li>\n`;
+  }
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="zh-CN">
+<head>
+  <title>${title} - 目录</title>
+</head>
+<body>
+  <nav epub:type="toc" id="toc">
+    <h1>目录</h1>
+    <ol>
+${listItems}    </ol>
+  </nav>
+</body>
+</html>`;
+}
+
+function createCoverXhtml() {
+  const title = escapeXml(dom.bookTitle.value.trim() || 'Untitled');
+  const author = escapeXml(dom.bookAuthor.value.trim() || '');
+  const hasCover = !!state.coverDataUrl;
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-CN">
+<head>
+  <title>${title}</title>
+  <style>
+    body { margin: 0; padding: 0; text-align: center; font-family: sans-serif; }
+    .cover-img { max-width: 100%; max-height: 75vh; object-fit: contain; }
+    .title-section { padding: 2em 1.5em; }
+    .book-title { font-size: 1.8em; font-weight: bold; margin: 0.5em 0 0.3em; color: #1a1a1a; }
+    .book-author { font-size: 1.1em; color: #555; margin: 0; }
+  </style>
+</head>
+<body>
+  ${hasCover ? `<div><img class="cover-img" src="../Images/cover.jpg" alt="${title}"/></div>` : ''}
+  <div class="title-section">
+    <h1 class="book-title">${title}</h1>
+    ${author ? `<p class="book-author">${author}</p>` : ''}
+  </div>
+</body>
+</html>`;
+}
+
+function getDefaultStylesheet() {
+  return `/* Default EPUB Stylesheet */
+body {
+  font-family: "Noto Serif CJK SC", "Source Han Serif SC", "STSong", "SimSun", serif;
+  line-height: 1.8;
+  margin: 2em;
+  color: #1a1a1a;
+}
+h2 {
+  font-family: "Noto Sans CJK SC", "Source Han Sans SC", "STHeiti", "SimHei", sans-serif;
+  font-size: 1.5em;
+  margin: 1.5em 0 1em 0;
+  text-align: left;
+  border-bottom: 1px solid #ccc;
+  padding-bottom: 0.5em;
+}
+p {
+  margin: 0.8em 0;
+  text-indent: 2em;
+}
+img {
+  max-width: 100%;
+  height: auto;
+}
+`;
+}
+
+function getContainerXml() {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>`;
+}
+
+async function generateEpub() {
+  if (state.chapters.length === 0) {
+    showToast('请先上传 TXT 文件', 'warning');
+    return;
+  }
+
+  dom.progressOverlay.style.display = 'flex';
+
+  try {
+    // Small delay for UI to update
+    await new Promise(r => setTimeout(r, 50));
+
+    const zip = new JSZip();
+    const bookId = generateUUID();
+
+    // mimetype (must be first, uncompressed)
+    zip.file('mimetype', 'application/epub+zip', { compression: 'STORE' });
+
+    // META-INF/container.xml
+    zip.file('META-INF/container.xml', getContainerXml());
+
+    // OEBPS/styles.css
+    zip.file('OEBPS/styles.css', getDefaultStylesheet());
+
+    // OEBPS/Text/*.xhtml
+    const oebpsText = zip.folder('OEBPS').folder('Text');
+    const chapterIds = [];
+
+    for (let i = 0; i < state.chapters.length; i++) {
+      const filename = `chapter${i}.xhtml`;
+      const xhtml = createChapterXhtml(state.chapters[i], i);
+      oebpsText.file(filename, xhtml);
+      chapterIds.push(filename);
+    }
+
+    // Cover image & cover/title page (always generate title page)
+    if (state.coverBlob) {
+      const oebpsImages = zip.folder('OEBPS').folder('Images');
+      oebpsImages.file('cover.jpg', state.coverBlob, { compression: 'STORE' });
+    }
+    oebpsText.file('cover.xhtml', createCoverXhtml());
+
+    // OEBPS/toc.ncx
+    zip.file('OEBPS/toc.ncx', createTocNcx(bookId, chapterIds));
+
+    // OEBPS/nav.xhtml
+    zip.file('OEBPS/nav.xhtml', createNavXhtml(chapterIds));
+
+    // OEBPS/content.opf
+    zip.file('OEBPS/content.opf', createContentOpf(bookId, chapterIds));
+
+    // Generate blob and trigger download
+    const epubBlob = await zip.generateAsync({ type: 'blob', mimeType: 'application/epub+zip' });
+    const filename = (dom.bookTitle.value.trim() || state.fileName || 'ebook') + '.epub';
+
+    // Download
+    const url = URL.createObjectURL(epubBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast('EPUB 导出成功！');
+  } catch (err) {
+    console.error('EPUB generation failed:', err);
+    showToast('生成 EPUB 时发生错误：' + err.message, 'warning');
+  } finally {
+    dom.progressOverlay.style.display = 'none';
+  }
+}
+
+// ============ Export Button ============
+dom.exportBtn.addEventListener('click', generateEpub);
+
+// ============ Initialize ============
+state.title = dom.bookTitle.value;
+state.author = dom.bookAuthor.value;
+
+console.log('TXT to EPUB Converter ready.');
+console.log('纯前端处理，文件不会上传到任何服务器。');
+</script>
+
+<!-- Beian Bar -->
+<div class="beian-bar">
+  <div class="beian-pc">
+    <span class="beian-disclaimer">本站内容仅供学习和交流，非商业用途</span>
+    <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" class="beian-icp">浙ICP备2025187466号</a>
+    <a href="https://www.beian.gov.cn/portal/registerSystemInfo?recordcode=33030402001483" target="_blank" rel="noopener noreferrer" class="beian-gongan">
+      <img src="https://www.937788.xyz/gonganbeian.png" alt="公安备案" onerror="this.style.display='none'">
+      浙公网安备33030402001483号
+    </a>
+  </div>
+  <div class="beian-mobile">
+    <span class="beian-disclaimer">本站内容仅供学习和交流，非商业用途</span>
+    <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" class="beian-icp">浙ICP备2025187466号</a>
+    <a href="https://www.beian.gov.cn/portal/registerSystemInfo?recordcode=33030402001483" target="_blank" rel="noopener noreferrer" class="beian-gongan">
+      <img src="https://www.937788.xyz/gonganbeian.png" alt="公安备案" onerror="this.style.display='none'">
+      浙公网安备33030402001483号
+    </a>
+  </div>
+</div>
+
+</body>
+</html>
